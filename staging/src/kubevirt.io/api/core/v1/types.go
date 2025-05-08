@@ -257,8 +257,9 @@ type VirtualMachineInstanceStatus struct {
 	// +optional
 	KernelBootStatus *KernelBootStatus `json:"kernelBootStatus,omitempty"`
 
-	// FSFreezeStatus is the state of the fs of the guest
-	// it can be either frozen or thawed
+	// FSFreezeStatus indicates whether a freeze operation was requested for the guest filesystem.
+	// It will be set to "frozen" if the request was made, or unset otherwise.
+	// This does not reflect the actual state of the guest filesystem.
 	// +optional
 	FSFreezeStatus string `json:"fsFreezeStatus,omitempty"`
 
@@ -606,7 +607,7 @@ const (
 	VirtualMachineInstanceReasonPRNotMigratable = "PersistentReservationNotLiveMigratable"
 	// Reason means that not all of the VMI's DVs are ready
 	VirtualMachineInstanceReasonNotAllDVsReady = "NotAllDVsReady"
-	// Reason means that all of the VMI's DVs are bound and not running
+	// Reason means that all of the VMI's DVs are bound and ready
 	VirtualMachineInstanceReasonAllDVsReady = "AllDVsReady"
 	// Indicates a generic reason that the VMI isn't migratable and more details are spiecified in the condition message.
 	VirtualMachineInstanceReasonNotMigratable = "NotMigratable"
@@ -1126,6 +1127,10 @@ const (
 	// ImmediateDataVolumeCreation indicates that the data volumes should be created immediately
 	// Even if the VM is halted
 	ImmediateDataVolumeCreation string = "kubevirt.io/immediate-data-volume-creation"
+
+	// DisablePCIHole64 indicates that the 64-Bit PCI hole should be disabled on a VirtualMachineInstance.
+	// This annotation might be deprecated in the future if we decided to add a struct for it.
+	DisablePCIHole64 string = "kubevirt.io/disablePCIHole64"
 )
 
 func NewVMI(name string, uid types.UID) *VirtualMachineInstance {
@@ -2354,8 +2359,9 @@ type VirtualMachineInstanceGuestAgentInfo struct {
 	UserList []VirtualMachineInstanceGuestOSUser `json:"userList,omitempty"`
 	// FSInfo is a guest os filesystem information containing the disk mapping and disk mounts with usage
 	FSInfo VirtualMachineInstanceFileSystemInfo `json:"fsInfo,omitempty"`
-	// FSFreezeStatus is the state of the fs of the guest
-	// it can be either frozen or thawed
+	// FSFreezeStatus indicates whether a freeze operation was requested for the guest filesystem.
+	// It will be set to "frozen" if the request was made, or unset otherwise.
+	// This does not reflect the actual state of the guest filesystem.
 	FSFreezeStatus string `json:"fsFreezeStatus,omitempty"`
 }
 
@@ -2563,6 +2569,11 @@ type KubeVirtConfiguration struct {
 	// SupportContainerResources specifies the resource requirements for various types of supporting containers such as container disks/virtiofs/sidecars and hotplug attachment pods. If omitted a sensible default will be supplied.
 	SupportContainerResources []SupportContainerResources `json:"supportContainerResources,omitempty"`
 
+	// +listType=map
+	// +listMapKey=type
+	// SupportPodTolerations specifies the tolerations for various types of supporting containers such as hotplug attachment pods. If omitted a sensible default will be supplied.
+	SupportPodTolerations []SupportPodTolerations `json:"supportPodTolerations,omitempty"`
+
 	// deprecated
 	SupportedGuestAgentVersions    []string                          `json:"supportedGuestAgentVersions,omitempty"`
 	MemBalloonStatsPeriod          *uint32                           `json:"memBalloonStatsPeriod,omitempty"`
@@ -2687,6 +2698,11 @@ const (
 type SupportContainerResources struct {
 	Type      SupportContainerType              `json:"type"`
 	Resources ResourceRequirementsWithoutClaims `json:"resources"`
+}
+
+type SupportPodTolerations struct {
+	Type        SupportContainerType `json:"type"`
+	Tolerations []k8sv1.Toleration   `json:"tolerations"`
 }
 
 type TLSProtocolVersion string
