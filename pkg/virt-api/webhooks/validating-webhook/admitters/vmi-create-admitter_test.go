@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Copyright 2018 Red Hat, Inc.
+ * Copyright The KubeVirt Authors.
  *
  */
 
@@ -478,31 +478,43 @@ var _ = Describe("Validating VMICreate Admitter", func() {
 	})
 
 	Context("with VirtualMachineInstance spec", func() {
-		It("should accept valid machine type", func() {
+		DescribeTable("should accept valid machine type", func(arch string, machineType string) {
+			enableFeatureGate(featuregate.MultiArchitecture)
+
 			vmi := api.NewMinimalVMI("testvmi")
-			if webhooks.IsPPC64(&vmi.Spec) {
-				vmi.Spec.Domain.Machine = &v1.Machine{Type: "pseries"}
-			} else if webhooks.IsARM64(&vmi.Spec) {
-				vmi.Spec.Domain.Machine = &v1.Machine{Type: "virt"}
-			} else if webhooks.IsS390X(&vmi.Spec) {
-				vmi.Spec.Domain.Machine = &v1.Machine{Type: "s390-ccw-virtio"}
-			} else {
-				vmi.Spec.Domain.Machine = &v1.Machine{Type: "q35"}
-			}
+
+			vmi.Spec.Architecture = arch
+			vmi.Spec.Domain.Machine = &v1.Machine{Type: machineType}
 
 			causes := ValidateVirtualMachineInstanceSpec(k8sfield.NewPath("fake"), &vmi.Spec, config)
 			Expect(causes).To(BeEmpty())
-		})
-		It("should reject invalid machine type", func() {
+		},
+			Entry("when architecture is amd64", "amd64", "q35"),
+			Entry("when architecture is arm64", "arm64", "virt"),
+			Entry("when architecture is ppc64le", "ppc64le", "pseries"),
+			Entry("when architecture is s390x", "s390x", "s390-ccw-virtio"),
+		)
+
+		DescribeTable("should reject invalid machine type", func(arch string, machineType string) {
+			enableFeatureGate(featuregate.MultiArchitecture)
+
 			vmi := api.NewMinimalVMI("testvmi")
-			vmi.Spec.Domain.Machine = &v1.Machine{Type: "test"}
+			vmi.Spec.Architecture = arch
+			vmi.Spec.Domain.Machine = &v1.Machine{Type: machineType}
 
 			causes := ValidateVirtualMachineInstanceSpec(k8sfield.NewPath("fake"), &vmi.Spec, config)
 			Expect(causes).To(HaveLen(1))
 			Expect(string(causes[0].Type)).To(Equal("FieldValueInvalid"))
 			Expect(causes[0].Field).To(Equal("fake.domain.machine.type"))
-			Expect(causes[0].Message).To(ContainSubstring("fake.domain.machine.type is not supported: test (allowed values:"))
-		})
+			Expect(causes[0].Message).To(ContainSubstring(fmt.Sprintf("fake.domain.machine.type is not supported: %s (allowed values:", machineType)))
+		},
+			Entry("Simple wrong value", "amd64", "test"),
+			Entry("Wrong prefix amd64 q35", "amd64", "test-q35"),
+			Entry("Wrong prefix amd64 pc-q35", "amd64", "test-pc-q35"),
+			Entry("Wrong prefix arm64", "arm64", "test-virt"),
+			Entry("Wrong prefix ppc64le", "ppc64le", "test-pseries"),
+			Entry("Wrong prefix s390x", "s390x", "test-s390-ccw-virtio"),
+		)
 
 		It("should accept valid hostname", func() {
 			vmi := api.NewMinimalVMI("testvmi")
@@ -2899,15 +2911,22 @@ var _ = Describe("Validating VMICreate Admitter", func() {
 				}, 1, "Volume of unsupported type"),
 		)
 
-		It("should reject setting cpu model to host-model", func() {
+		DescribeTable("validating cpu model with", func(model string, expectedLen int) {
 			vmi := api.NewMinimalVMI("testvmi")
-			vmi.Spec.Domain.CPU = &v1.CPU{Model: "host-model"}
+			vmi.Spec.Domain.CPU = &v1.CPU{Model: model}
 
 			causes := webhooks.ValidateVirtualMachineInstanceArm64Setting(k8sfield.NewPath("fake"), &vmi.Spec)
-			Expect(causes).To(HaveLen(1))
-			Expect(causes[0].Field).To(Equal("fake.domain.cpu.model"))
-			Expect(causes[0].Message).To(Equal("Arm64 not support CPU host-model"))
-		})
+			Expect(causes).To(HaveLen(expectedLen))
+			if expectedLen != 0 {
+				Expect(causes[0].Field).To(Equal("fake.domain.cpu.model"))
+				Expect(causes[0].Message).To(Equal(fmt.Sprintf("currently, %v is the only model supported on Arm64", v1.CPUModeHostPassthrough)))
+			}
+		},
+			Entry("host-model should get rejected with arm64", "host-model", 1),
+			Entry("named model should get rejected with arm64", "Cooperlake", 1),
+			Entry("host-passthrough should be accepted with arm64", "host-passthrough", 0),
+			Entry("empty model should be accepted with arm64", "", 0),
+		)
 
 		It("should reject setting watchdog device", func() {
 			vmi := api.NewMinimalVMI("testvmi")

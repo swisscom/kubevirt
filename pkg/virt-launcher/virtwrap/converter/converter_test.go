@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Copyright 2017, 2018 Red Hat, Inc.
+ * Copyright The KubeVirt Authors.
  *
  */
 
@@ -146,6 +146,88 @@ var _ = Describe("Converter", func() {
 
 	TestSmbios := &cmdv1.SMBios{}
 	EphemeralDiskImageCreator := &fake.MockEphemeralDiskImageCreator{BaseDir: "/var/run/libvirt/kubevirt-ephemeral-disk/"}
+
+	Context("with watchdog", func() {
+		DescribeTable("should successfully convert watchdog for supported architectures",
+			func(arch string, input *v1.Watchdog, expected *api.Watchdog) {
+				converter := archconverter.NewConverter(arch)
+				newWatchdog := &api.Watchdog{}
+				err := converter.ConvertWatchdog(input, newWatchdog)
+
+				Expect(err).ToNot(HaveOccurred())
+				Expect(newWatchdog).To(Equal(expected))
+			},
+
+			Entry("amd64 with I6300ESB",
+				"amd64",
+				&v1.Watchdog{
+					Name: "mywatchdog",
+					WatchdogDevice: v1.WatchdogDevice{
+						I6300ESB: &v1.I6300ESBWatchdog{
+							Action: v1.WatchdogActionPoweroff,
+						},
+					},
+				},
+				&api.Watchdog{
+					Alias:  api.NewUserDefinedAlias("mywatchdog"),
+					Model:  "i6300esb",
+					Action: "poweroff",
+				},
+			),
+
+			Entry("s390x with Diag288",
+				"s390x",
+				&v1.Watchdog{
+					Name: "diagwatchdog",
+					WatchdogDevice: v1.WatchdogDevice{
+						Diag288: &v1.Diag288Watchdog{
+							Action: v1.WatchdogActionReset,
+						},
+					},
+				},
+				&api.Watchdog{
+					Alias:  api.NewUserDefinedAlias("diagwatchdog"),
+					Model:  "diag288",
+					Action: "reset",
+				},
+			),
+		)
+		DescribeTable("should fail to convert watchdog for unsupported or invalid architectures",
+			func(arch string, input *v1.Watchdog, expectedErrMsg string) {
+				converter := archconverter.NewConverter(arch)
+				newWatchdog := &api.Watchdog{}
+				err := converter.ConvertWatchdog(input, newWatchdog)
+
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring(expectedErrMsg))
+			},
+
+			Entry("arm64 not supported",
+				"arm64",
+				&v1.Watchdog{Name: "unsupportedwatchdog"},
+				"not supported on architecture",
+			),
+
+			Entry("ppc64le not supported",
+				"ppc64le",
+				&v1.Watchdog{Name: "unsupportedwatchdog"},
+				"not supported on architecture",
+			),
+
+			Entry("amd64 with no watchdog type",
+				"amd64",
+				&v1.Watchdog{Name: "emptywatchdog"},
+				"can't be mapped",
+			),
+
+			Entry("s390x with nil Diag288",
+				"s390x",
+				&v1.Watchdog{Name: "diagwatchdog"},
+				"can't be mapped",
+			),
+		)
+
+	})
 
 	Context("with timezone", func() {
 		It("Should set timezone attribute", func() {
@@ -370,14 +452,6 @@ var _ = Describe("Converter", func() {
 				},
 			}
 			v1.SetObjectDefaults_VirtualMachineInstance(vmi)
-			vmi.Spec.Domain.Devices.Watchdog = &v1.Watchdog{
-				Name: "mywatchdog",
-				WatchdogDevice: v1.WatchdogDevice{
-					I6300ESB: &v1.I6300ESBWatchdog{
-						Action: v1.WatchdogActionPoweroff,
-					},
-				},
-			}
 			vmi.Spec.Domain.Clock = &v1.Clock{
 				ClockOffset: v1.ClockOffset{
 					UTC: &v1.ClockOffsetUTC{},
@@ -1191,6 +1265,46 @@ var _ = Describe("Converter", func() {
 			Entry("should not be disabled on ppc64le when device with no bus is present", ppc64le, "", BeFalse()),
 			Entry("should be disabled on s390x when usb device is present", s390x, "usb", BeTrue()),
 			Entry("should be disabled on s390x when device with no bus is present", s390x, "", BeTrue()),
+		)
+
+		DescribeTable("PCIHole64 on pcie-root Controller should", func(arch, value string, expected bool) {
+			v1.SetObjectDefaults_VirtualMachineInstance(vmi)
+			if value != "" {
+				if vmi.Annotations == nil {
+					vmi.Annotations = make(map[string]string)
+				}
+				vmi.Annotations[v1.DisablePCIHole64] = value
+			}
+			c.Architecture = archconverter.NewConverter(arch)
+			domain := vmiToDomain(vmi, c)
+
+			containElement := ContainElement(api.Controller{
+				Type:  "pci",
+				Index: "0",
+				Model: "pcie-root",
+				PCIHole64: &api.PCIHole64{
+					Value: 0,
+					Unit:  "KiB",
+				},
+			})
+			if expected {
+				Expect(domain.Spec.Devices.Controllers).To(containElement, "Expected pcihole64 to be set to zero")
+			} else {
+				Expect(domain.Spec.Devices.Controllers).ToNot(containElement, "Expected pcihole64 to not be set")
+			}
+		},
+			Entry("be set to zero on amd64 when annotation was set to true", amd64, "true", true),
+			Entry("not be set on amd64 when annotation was not set", amd64, "", false),
+			Entry("not be set on amd64 when annotation was set not to true", amd64, "something", false),
+			Entry("not be set on arm64 when annotation was set to true", arm64, "true", false),
+			Entry("not be set on arm64 when annotation was not set", arm64, "", false),
+			Entry("not be set on arm64 when annotation was set not to true", arm64, "something", false),
+			Entry("not be set on ppc64le when annotation was set to true", ppc64le, "true", false),
+			Entry("not be set on ppc64le when annotation was not set", ppc64le, "", false),
+			Entry("not be set on ppc64le when annotation was set not to true", ppc64le, "something", false),
+			Entry("not be set on s390x when annotation was set to true", s390x, "true", false),
+			Entry("not be set on s390x when annotation was not set", s390x, "", false),
+			Entry("not be set on s390x when annotation was set not to true", s390x, "something", false),
 		)
 
 		It("should fail when input device is set to ps2 bus", func() {
@@ -3564,3 +3678,79 @@ func vmiArchMutate(arch string, vmi *v1.VirtualMachineInstance, c *ConverterCont
 		defaults.SetS390xDefaults(&vmi.Spec)
 	}
 }
+
+var _ = Describe("Defaults", func() {
+	It("should set the default watchdog and the default watchdog action for amd64", func() {
+		vmi := &v1.VirtualMachineInstance{
+			Spec: v1.VirtualMachineInstanceSpec{
+				Domain: v1.DomainSpec{
+					Devices: v1.Devices{
+						Watchdog: &v1.Watchdog{
+							WatchdogDevice: v1.WatchdogDevice{
+								I6300ESB: &v1.I6300ESBWatchdog{},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		defaults.SetAmd64Watchdog(&vmi.Spec)
+		Expect(vmi.Spec.Domain.Devices.Watchdog.I6300ESB.Action).To(Equal(v1.WatchdogActionReset))
+
+		vmi.Spec.Domain.Devices.Watchdog.I6300ESB = nil
+		defaults.SetAmd64Watchdog(&vmi.Spec)
+		Expect(vmi.Spec.Domain.Devices.Watchdog.I6300ESB).ToNot(BeNil())
+		Expect(vmi.Spec.Domain.Devices.Watchdog.I6300ESB.Action).To(Equal(v1.WatchdogActionReset))
+	})
+
+	It("should not set a watchdog if none is defined on amd64", func() {
+		vmi := &v1.VirtualMachineInstance{
+			Spec: v1.VirtualMachineInstanceSpec{
+				Domain: v1.DomainSpec{
+					Devices: v1.Devices{},
+				},
+			},
+		}
+
+		defaults.SetAmd64Watchdog(&vmi.Spec)
+		Expect(vmi.Spec.Domain.Devices.Watchdog).To(BeNil())
+	})
+
+	It("should set the default watchdog and the default watchdog action for s390x", func() {
+		vmi := &v1.VirtualMachineInstance{
+			Spec: v1.VirtualMachineInstanceSpec{
+				Domain: v1.DomainSpec{
+					Devices: v1.Devices{
+						Watchdog: &v1.Watchdog{
+							WatchdogDevice: v1.WatchdogDevice{
+								Diag288: &v1.Diag288Watchdog{},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		defaults.SetS390xWatchdog(&vmi.Spec)
+		Expect(vmi.Spec.Domain.Devices.Watchdog.Diag288.Action).To(Equal(v1.WatchdogActionReset))
+
+		vmi.Spec.Domain.Devices.Watchdog.Diag288 = nil
+		defaults.SetS390xWatchdog(&vmi.Spec)
+		Expect(vmi.Spec.Domain.Devices.Watchdog.Diag288).ToNot(BeNil())
+		Expect(vmi.Spec.Domain.Devices.Watchdog.Diag288.Action).To(Equal(v1.WatchdogActionReset))
+	})
+
+	It("should not set a watchdog if none is defined on s390x", func() {
+		vmi := &v1.VirtualMachineInstance{
+			Spec: v1.VirtualMachineInstanceSpec{
+				Domain: v1.DomainSpec{
+					Devices: v1.Devices{},
+				},
+			},
+		}
+
+		defaults.SetS390xWatchdog(&vmi.Spec)
+		Expect(vmi.Spec.Domain.Devices.Watchdog).To(BeNil())
+	})
+})

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Copyright 2017, 2018 Red Hat, Inc.
+ * Copyright The KubeVirt Authors.
  *
  */
 
@@ -93,20 +93,8 @@ const (
 	DefaultVMRolloutStrategy = v1.VMRolloutStrategyLiveUpdate
 )
 
-func IsAMD64(arch string) bool {
-	return arch == "amd64"
-}
-
 func IsARM64(arch string) bool {
 	return arch == "arm64"
-}
-
-func IsPPC64(arch string) bool {
-	return arch == "ppc64le"
-}
-
-func IsS390X(arch string) bool {
-	return arch == "s390x"
 }
 
 func (c *ClusterConfig) GetMemBalloonStatsPeriod() uint32 {

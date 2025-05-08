@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Copyright 2022 Red Hat, Inc.
+ * Copyright The KubeVirt Authors.
  *
  */
 
@@ -218,6 +218,10 @@ var _ = Describe(SIG("Export", func() {
 			pod.Spec.SecurityContext = &k8sv1.PodSecurityContext{}
 		}
 		pod.Spec.SecurityContext.FSGroup = &qemuGid
+		// Drop this when we stop testing "local"
+		// The in tree driver for local PVs skips chown/chmod if two pods using the volume overlap
+		// https://github.com/kubernetes/kubernetes/blob/0d9dccfc6bc22f2370650cf5b8ad99cbba74ea23/pkg/volume/local/local.go#L611
+		pod.Spec.SecurityContext.RunAsUser = &qemuGid
 
 		volumeMode := pvc.Spec.VolumeMode
 		if volumeMode != nil && *volumeMode == k8sv1.PersistentVolumeBlock {
@@ -297,6 +301,7 @@ var _ = Describe(SIG("Export", func() {
 
 		pod, err := createSourcePodChecker(pvc)
 		Expect(err).ToNot(HaveOccurred())
+		Eventually(ThisPod(pod), 30*time.Second, 1*time.Second).Should(HaveConditionTrue(k8sv1.PodReady))
 
 		fileName := filepath.Join(dataPath, diskImage)
 		if volumeMode == k8sv1.PersistentVolumeBlock {
@@ -306,7 +311,11 @@ var _ = Describe(SIG("Export", func() {
 		Eventually(func() error {
 			out, stderr, err = exec.ExecuteCommandOnPodWithResults(pod, pod.Spec.Containers[0].Name, md5Command(fileName))
 			return err
-		}, 15*time.Second, 1*time.Second).Should(BeNil(), "md5sum command should succeed; out: %s stderr: %s", out, stderr)
+		}, 15*time.Second, 1*time.Second).Should(Succeed(), func() string {
+			permissionsCmd := []string{"ls", "-laZ", fileName}
+			lsout, lserr, _ := exec.ExecuteCommandOnPodWithResults(pod, pod.Spec.Containers[0].Name, permissionsCmd)
+			return fmt.Sprintf("md5sum command should succeed; out: %s stderr: %s\npermissions ATM lsout: %s lserr: %s", out, stderr, lsout, lserr)
+		})
 		md5sum := strings.Split(out, " ")[0]
 		Expect(md5sum).To(HaveLen(32))
 

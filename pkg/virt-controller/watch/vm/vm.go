@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Copyright 2017 Red Hat, Inc.
+ * Copyright The KubeVirt Authors.
  *
  */
 
@@ -35,7 +35,8 @@ import (
 	"kubevirt.io/kubevirt/pkg/liveupdate/memory"
 
 	netadmitter "kubevirt.io/kubevirt/pkg/network/admitter"
-	"kubevirt.io/kubevirt/pkg/network/vmispec"
+	netvmispec "kubevirt.io/kubevirt/pkg/network/vmispec"
+	netvmliveupdate "kubevirt.io/kubevirt/pkg/network/vmliveupdate"
 	"kubevirt.io/kubevirt/pkg/virt-controller/watch/common"
 	watchutil "kubevirt.io/kubevirt/pkg/virt-controller/watch/util"
 
@@ -1216,7 +1217,7 @@ func (c *Controller) startVMI(vm *virtv1.VirtualMachine) (*virtv1.VirtualMachine
 
 	autoAttachInputDevice(vmi)
 
-	err = vmispec.SetDefaultNetworkInterface(c.clusterConfig, &vmi.Spec)
+	err = netvmispec.SetDefaultNetworkInterface(c.clusterConfig, &vmi.Spec)
 	if err != nil {
 		return vm, err
 	}
@@ -2891,7 +2892,7 @@ func (c *Controller) addRestartRequiredIfNeeded(lastSeenVMSpec *virtv1.VirtualMa
 	lastSeenVM := &virtv1.VirtualMachine{
 		// We need the namespace to be populated here for the lookup and application of instance types to work below
 		ObjectMeta: currentVM.DeepCopy().ObjectMeta,
-		Spec:       *lastSeenVMSpec,
+		Spec:       *lastSeenVMSpec.DeepCopy(),
 	}
 	if err := c.instancetypeController.ApplyToVM(lastSeenVM); err != nil {
 		return false
@@ -2899,16 +2900,16 @@ func (c *Controller) addRestartRequiredIfNeeded(lastSeenVMSpec *virtv1.VirtualMa
 
 	// Ignore all the live-updatable fields by copying them over. (If the feature gate is disabled, nothing is live-updatable)
 	// Note: this list needs to stay up-to-date with everything that can be live-updated
-	// Note2: destroying lastSeenVMSpec here is fine, we don't need it later
+	// Note2: destroying lastSeenVM here is fine, we don't need it later
 	if c.clusterConfig.IsVMRolloutStrategyLiveUpdate() {
-		if validLiveUpdateVolumes(lastSeenVMSpec, currentVM) {
-			lastSeenVMSpec.Template.Spec.Volumes = currentVM.Spec.Template.Spec.Volumes
+		if validLiveUpdateVolumes(&lastSeenVM.Spec, currentVM) {
+			lastSeenVM.Spec.Template.Spec.Volumes = currentVM.Spec.Template.Spec.Volumes
 		}
-		if validLiveUpdateDisks(lastSeenVMSpec, currentVM) {
-			lastSeenVMSpec.Template.Spec.Domain.Devices.Disks = currentVM.Spec.Template.Spec.Domain.Devices.Disks
+		if validLiveUpdateDisks(&lastSeenVM.Spec, currentVM) {
+			lastSeenVM.Spec.Template.Spec.Domain.Devices.Disks = currentVM.Spec.Template.Spec.Domain.Devices.Disks
 		}
-		if lastSeenVMSpec.Template.Spec.Domain.CPU != nil && currentVM.Spec.Template.Spec.Domain.CPU != nil {
-			lastSeenVMSpec.Template.Spec.Domain.CPU.Sockets = currentVM.Spec.Template.Spec.Domain.CPU.Sockets
+		if lastSeenVM.Spec.Template.Spec.Domain.CPU != nil && currentVM.Spec.Template.Spec.Domain.CPU != nil {
+			lastSeenVM.Spec.Template.Spec.Domain.CPU.Sockets = currentVM.Spec.Template.Spec.Domain.CPU.Sockets
 		}
 
 		if currentVM.Spec.Template.Spec.Domain.Memory != nil && currentVM.Spec.Template.Spec.Domain.Memory.Guest != nil {
@@ -2931,9 +2932,14 @@ func (c *Controller) addRestartRequiredIfNeeded(lastSeenVMSpec *virtv1.VirtualMa
 		// the change was declarative, then the VMI would still not have the update.
 		if equality.Semantic.DeepEqual(currentVM.Spec.Template.Spec.Volumes, vmi.Spec.Volumes) &&
 			equality.Semantic.DeepEqual(currentVM.Spec.Template.Spec.Domain.Devices.Disks, vmi.Spec.Domain.Devices.Disks) {
-			lastSeenVMSpec.Template.Spec.Volumes = currentVM.Spec.Template.Spec.Volumes
-			lastSeenVMSpec.Template.Spec.Domain.Devices.Disks = currentVM.Spec.Template.Spec.Domain.Devices.Disks
+			lastSeenVM.Spec.Template.Spec.Volumes = currentVM.Spec.Template.Spec.Volumes
+			lastSeenVM.Spec.Template.Spec.Domain.Devices.Disks = currentVM.Spec.Template.Spec.Domain.Devices.Disks
 		}
+	}
+
+	if !netvmliveupdate.IsRestartRequired(currentVM, vmi) {
+		lastSeenVM.Spec.Template.Spec.Domain.Devices.Interfaces = currentVM.Spec.Template.Spec.Domain.Devices.Interfaces
+		lastSeenVM.Spec.Template.Spec.Networks = currentVM.Spec.Template.Spec.Networks
 	}
 
 	if !equality.Semantic.DeepEqual(lastSeenVM.Spec.Template.Spec, currentVM.Spec.Template.Spec) {

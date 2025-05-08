@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Copyright 2017 Red Hat, Inc.
+ * Copyright The KubeVirt Authors.
  *
  */
 
@@ -120,7 +120,7 @@ var _ = Describe("[sig-compute]Configurations", decorators.SigCompute, func() {
 			vmi := libvmifact.NewCirros(
 				libvmi.WithAnnotation(v1.PlacePCIDevicesOnRootComplex, "true"),
 				libvmi.WithRng(),
-				libvmi.WithWatchdog(v1.WatchdogActionPoweroff),
+				libvmi.WithWatchdog(v1.WatchdogActionPoweroff, libnode.GetArch()),
 				libvmi.WithTablet("tablet", "virtio"),
 				libvmi.WithTablet("tablet1", "usb"),
 			)
@@ -142,7 +142,7 @@ var _ = Describe("[sig-compute]Configurations", decorators.SigCompute, func() {
 		It("[test_id:6957]should start and run the guest", func() {
 			vmi := libvmifact.NewCirros(
 				libvmi.WithRng(),
-				libvmi.WithWatchdog(v1.WatchdogActionPoweroff),
+				libvmi.WithWatchdog(v1.WatchdogActionPoweroff, libnode.GetArch()),
 				libvmi.WithTablet("tablet", "virtio"),
 				libvmi.WithTablet("tablet1", "usb"),
 			)

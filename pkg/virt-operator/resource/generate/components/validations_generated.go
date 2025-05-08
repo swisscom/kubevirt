@@ -6046,7 +6046,11 @@ var CRDsValidation map[string]string = map[string]string{
                               cache:
                                 description: |-
                                   Cache specifies which kvm disk cache mode should be used.
-                                  Supported values are: CacheNone, CacheWriteThrough.
+                                  Supported values are:
+                                  none: Guest I/O not cached on the host, but may be kept in a disk cache.
+                                  writethrough: Guest I/O cached on the host but written through to the physical medium. Slowest but with most guarantees.
+                                  writeback: Guest I/O cached on the host.
+                                  Defaults to none if the storage supports O_DIRECT, otherwise writethrough.
                                 type: string
                               cdrom:
                                 description: Attach a volume as a cdrom to the vmi.
@@ -6457,7 +6461,7 @@ var CRDsValidation map[string]string = map[string]string{
                           properties:
                             enabled:
                               description: |-
-                                Enabled allows a user to explictly disable the vTPM even when one is enabled by a preference referenced by the VirtualMachine
+                                Enabled allows a user to explicitly disable the vTPM even when one is enabled by a preference referenced by the VirtualMachine
                                 Defaults to True
                               type: boolean
                             persistent:
@@ -6476,6 +6480,16 @@ var CRDsValidation map[string]string = map[string]string{
                           description: Watchdog describes a watchdog device which
                             can be added to the vmi.
                           properties:
+                            diag288:
+                              description: diag288 watchdog device (specific to s390x
+                                architecture).
+                              properties:
+                                action:
+                                  description: |-
+                                    The action to take. Valid values are poweroff, reset, shutdown.
+                                    Defaults to reset.
+                                  type: string
+                              type: object
                             i6300esb:
                               description: i6300esb watchdog device.
                               properties:
@@ -8265,7 +8279,11 @@ var CRDsValidation map[string]string = map[string]string{
                       cache:
                         description: |-
                           Cache specifies which kvm disk cache mode should be used.
-                          Supported values are: CacheNone, CacheWriteThrough.
+                          Supported values are:
+                          none: Guest I/O not cached on the host, but may be kept in a disk cache.
+                          writethrough: Guest I/O cached on the host but written through to the physical medium. Slowest but with most guarantees.
+                          writeback: Guest I/O cached on the host.
+                          Defaults to none if the storage supports O_DIRECT, otherwise writethrough.
                         type: string
                       cdrom:
                         description: Attach a volume as a cdrom to the vmi.
@@ -9314,7 +9332,7 @@ var CRDsValidation map[string]string = map[string]string{
               properties:
                 enabled:
                   description: |-
-                    Enabled allows a user to explictly disable the vTPM even when one is enabled by a preference referenced by the VirtualMachine
+                    Enabled allows a user to explicitly disable the vTPM even when one is enabled by a preference referenced by the VirtualMachine
                     Defaults to True
                   type: boolean
                 persistent:
@@ -11341,7 +11359,11 @@ var CRDsValidation map[string]string = map[string]string{
                       cache:
                         description: |-
                           Cache specifies which kvm disk cache mode should be used.
-                          Supported values are: CacheNone, CacheWriteThrough.
+                          Supported values are:
+                          none: Guest I/O not cached on the host, but may be kept in a disk cache.
+                          writethrough: Guest I/O cached on the host but written through to the physical medium. Slowest but with most guarantees.
+                          writeback: Guest I/O cached on the host.
+                          Defaults to none if the storage supports O_DIRECT, otherwise writethrough.
                         type: string
                       cdrom:
                         description: Attach a volume as a cdrom to the vmi.
@@ -11747,7 +11769,7 @@ var CRDsValidation map[string]string = map[string]string{
                   properties:
                     enabled:
                       description: |-
-                        Enabled allows a user to explictly disable the vTPM even when one is enabled by a preference referenced by the VirtualMachine
+                        Enabled allows a user to explicitly disable the vTPM even when one is enabled by a preference referenced by the VirtualMachine
                         Defaults to True
                       type: boolean
                     persistent:
@@ -11766,6 +11788,15 @@ var CRDsValidation map[string]string = map[string]string{
                   description: Watchdog describes a watchdog device which can be added
                     to the vmi.
                   properties:
+                    diag288:
+                      description: diag288 watchdog device (specific to s390x architecture).
+                      properties:
+                        action:
+                          description: |-
+                            The action to take. Valid values are poweroff, reset, shutdown.
+                            Defaults to reset.
+                          type: string
+                      type: object
                     i6300esb:
                       description: i6300esb watchdog device.
                       properties:
@@ -13346,8 +13377,9 @@ var CRDsValidation map[string]string = map[string]string{
           type: string
         fsFreezeStatus:
           description: |-
-            FSFreezeStatus is the state of the fs of the guest
-            it can be either frozen or thawed
+            FSFreezeStatus indicates whether a freeze operation was requested for the guest filesystem.
+            It will be set to "frozen" if the request was made, or unset otherwise.
+            This does not reflect the actual state of the guest filesystem.
           type: string
         guestOSInfo:
           description: Guest OS Information
@@ -14561,7 +14593,11 @@ var CRDsValidation map[string]string = map[string]string{
                       cache:
                         description: |-
                           Cache specifies which kvm disk cache mode should be used.
-                          Supported values are: CacheNone, CacheWriteThrough.
+                          Supported values are:
+                          none: Guest I/O not cached on the host, but may be kept in a disk cache.
+                          writethrough: Guest I/O cached on the host but written through to the physical medium. Slowest but with most guarantees.
+                          writeback: Guest I/O cached on the host.
+                          Defaults to none if the storage supports O_DIRECT, otherwise writethrough.
                         type: string
                       cdrom:
                         description: Attach a volume as a cdrom to the vmi.
@@ -14967,7 +15003,7 @@ var CRDsValidation map[string]string = map[string]string{
                   properties:
                     enabled:
                       description: |-
-                        Enabled allows a user to explictly disable the vTPM even when one is enabled by a preference referenced by the VirtualMachine
+                        Enabled allows a user to explicitly disable the vTPM even when one is enabled by a preference referenced by the VirtualMachine
                         Defaults to True
                       type: boolean
                     persistent:
@@ -14986,6 +15022,15 @@ var CRDsValidation map[string]string = map[string]string{
                   description: Watchdog describes a watchdog device which can be added
                     to the vmi.
                   properties:
+                    diag288:
+                      description: diag288 watchdog device (specific to s390x architecture).
+                      properties:
+                        action:
+                          description: |-
+                            The action to take. Valid values are poweroff, reset, shutdown.
+                            Defaults to reset.
+                          type: string
+                      type: object
                     i6300esb:
                       description: i6300esb watchdog device.
                       properties:
@@ -16981,7 +17026,11 @@ var CRDsValidation map[string]string = map[string]string{
                               cache:
                                 description: |-
                                   Cache specifies which kvm disk cache mode should be used.
-                                  Supported values are: CacheNone, CacheWriteThrough.
+                                  Supported values are:
+                                  none: Guest I/O not cached on the host, but may be kept in a disk cache.
+                                  writethrough: Guest I/O cached on the host but written through to the physical medium. Slowest but with most guarantees.
+                                  writeback: Guest I/O cached on the host.
+                                  Defaults to none if the storage supports O_DIRECT, otherwise writethrough.
                                 type: string
                               cdrom:
                                 description: Attach a volume as a cdrom to the vmi.
@@ -17392,7 +17441,7 @@ var CRDsValidation map[string]string = map[string]string{
                           properties:
                             enabled:
                               description: |-
-                                Enabled allows a user to explictly disable the vTPM even when one is enabled by a preference referenced by the VirtualMachine
+                                Enabled allows a user to explicitly disable the vTPM even when one is enabled by a preference referenced by the VirtualMachine
                                 Defaults to True
                               type: boolean
                             persistent:
@@ -17411,6 +17460,16 @@ var CRDsValidation map[string]string = map[string]string{
                           description: Watchdog describes a watchdog device which
                             can be added to the vmi.
                           properties:
+                            diag288:
+                              description: diag288 watchdog device (specific to s390x
+                                architecture).
+                              properties:
+                                action:
+                                  description: |-
+                                    The action to take. Valid values are poweroff, reset, shutdown.
+                                    Defaults to reset.
+                                  type: string
+                              type: object
                             i6300esb:
                               description: i6300esb watchdog device.
                               properties:
@@ -21470,7 +21529,11 @@ var CRDsValidation map[string]string = map[string]string{
                                       cache:
                                         description: |-
                                           Cache specifies which kvm disk cache mode should be used.
-                                          Supported values are: CacheNone, CacheWriteThrough.
+                                          Supported values are:
+                                          none: Guest I/O not cached on the host, but may be kept in a disk cache.
+                                          writethrough: Guest I/O cached on the host but written through to the physical medium. Slowest but with most guarantees.
+                                          writeback: Guest I/O cached on the host.
+                                          Defaults to none if the storage supports O_DIRECT, otherwise writethrough.
                                         type: string
                                       cdrom:
                                         description: Attach a volume as a cdrom to
@@ -21897,7 +21960,7 @@ var CRDsValidation map[string]string = map[string]string{
                                   properties:
                                     enabled:
                                       description: |-
-                                        Enabled allows a user to explictly disable the vTPM even when one is enabled by a preference referenced by the VirtualMachine
+                                        Enabled allows a user to explicitly disable the vTPM even when one is enabled by a preference referenced by the VirtualMachine
                                         Defaults to True
                                       type: boolean
                                     persistent:
@@ -21916,6 +21979,16 @@ var CRDsValidation map[string]string = map[string]string{
                                   description: Watchdog describes a watchdog device
                                     which can be added to the vmi.
                                   properties:
+                                    diag288:
+                                      description: diag288 watchdog device (specific
+                                        to s390x architecture).
+                                      properties:
+                                        action:
+                                          description: |-
+                                            The action to take. Valid values are poweroff, reset, shutdown.
+                                            Defaults to reset.
+                                          type: string
+                                      type: object
                                     i6300esb:
                                       description: i6300esb watchdog device.
                                       properties:
@@ -23810,7 +23883,7 @@ var CRDsValidation map[string]string = map[string]string{
               properties:
                 enabled:
                   description: |-
-                    Enabled allows a user to explictly disable the vTPM even when one is enabled by a preference referenced by the VirtualMachine
+                    Enabled allows a user to explicitly disable the vTPM even when one is enabled by a preference referenced by the VirtualMachine
                     Defaults to True
                   type: boolean
                 persistent:
@@ -26663,7 +26736,11 @@ var CRDsValidation map[string]string = map[string]string{
                                           cache:
                                             description: |-
                                               Cache specifies which kvm disk cache mode should be used.
-                                              Supported values are: CacheNone, CacheWriteThrough.
+                                              Supported values are:
+                                              none: Guest I/O not cached on the host, but may be kept in a disk cache.
+                                              writethrough: Guest I/O cached on the host but written through to the physical medium. Slowest but with most guarantees.
+                                              writeback: Guest I/O cached on the host.
+                                              Defaults to none if the storage supports O_DIRECT, otherwise writethrough.
                                             type: string
                                           cdrom:
                                             description: Attach a volume as a cdrom
@@ -27098,7 +27175,7 @@ var CRDsValidation map[string]string = map[string]string{
                                       properties:
                                         enabled:
                                           description: |-
-                                            Enabled allows a user to explictly disable the vTPM even when one is enabled by a preference referenced by the VirtualMachine
+                                            Enabled allows a user to explicitly disable the vTPM even when one is enabled by a preference referenced by the VirtualMachine
                                             Defaults to True
                                           type: boolean
                                         persistent:
@@ -27117,6 +27194,16 @@ var CRDsValidation map[string]string = map[string]string{
                                       description: Watchdog describes a watchdog device
                                         which can be added to the vmi.
                                       properties:
+                                        diag288:
+                                          description: diag288 watchdog device (specific
+                                            to s390x architecture).
+                                          properties:
+                                            action:
+                                              description: |-
+                                                The action to take. Valid values are poweroff, reset, shutdown.
+                                                Defaults to reset.
+                                              type: string
+                                          type: object
                                         i6300esb:
                                           description: i6300esb watchdog device.
                                           properties:
@@ -28949,7 +29036,11 @@ var CRDsValidation map[string]string = map[string]string{
                                   cache:
                                     description: |-
                                       Cache specifies which kvm disk cache mode should be used.
-                                      Supported values are: CacheNone, CacheWriteThrough.
+                                      Supported values are:
+                                      none: Guest I/O not cached on the host, but may be kept in a disk cache.
+                                      writethrough: Guest I/O cached on the host but written through to the physical medium. Slowest but with most guarantees.
+                                      writeback: Guest I/O cached on the host.
+                                      Defaults to none if the storage supports O_DIRECT, otherwise writethrough.
                                     type: string
                                   cdrom:
                                     description: Attach a volume as a cdrom to the

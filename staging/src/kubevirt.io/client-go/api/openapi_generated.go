@@ -373,6 +373,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"kubevirt.io/api/core/v1.DeprecatedInterfaceSlirp":                                           schema_kubevirtio_api_core_v1_DeprecatedInterfaceSlirp(ref),
 		"kubevirt.io/api/core/v1.DeveloperConfiguration":                                             schema_kubevirtio_api_core_v1_DeveloperConfiguration(ref),
 		"kubevirt.io/api/core/v1.Devices":                                                            schema_kubevirtio_api_core_v1_Devices(ref),
+		"kubevirt.io/api/core/v1.Diag288Watchdog":                                                    schema_kubevirtio_api_core_v1_Diag288Watchdog(ref),
 		"kubevirt.io/api/core/v1.DisableFreePageReporting":                                           schema_kubevirtio_api_core_v1_DisableFreePageReporting(ref),
 		"kubevirt.io/api/core/v1.DisableSerialConsoleLog":                                            schema_kubevirtio_api_core_v1_DisableSerialConsoleLog(ref),
 		"kubevirt.io/api/core/v1.Disk":                                                               schema_kubevirtio_api_core_v1_Disk(ref),
@@ -19158,6 +19159,26 @@ func schema_kubevirtio_api_core_v1_Devices(ref common.ReferenceCallback) common.
 	}
 }
 
+func schema_kubevirtio_api_core_v1_Diag288Watchdog(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "diag288 watchdog device.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"action": {
+						SchemaProps: spec.SchemaProps{
+							Description: "The action to take. Valid values are poweroff, reset, shutdown. Defaults to reset.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
 func schema_kubevirtio_api_core_v1_DisableFreePageReporting(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -19233,7 +19254,7 @@ func schema_kubevirtio_api_core_v1_Disk(ref common.ReferenceCallback) common.Ope
 					},
 					"cache": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Cache specifies which kvm disk cache mode should be used. Supported values are: CacheNone, CacheWriteThrough.",
+							Description: "Cache specifies which kvm disk cache mode should be used. Supported values are: none: Guest I/O not cached on the host, but may be kept in a disk cache. writethrough: Guest I/O cached on the host but written through to the physical medium. Slowest but with most guarantees. writeback: Guest I/O cached on the host. Defaults to none if the storage supports O_DIRECT, otherwise writethrough.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -24407,7 +24428,7 @@ func schema_kubevirtio_api_core_v1_TPMDevice(ref common.ReferenceCallback) commo
 				Properties: map[string]spec.Schema{
 					"enabled": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Enabled allows a user to explictly disable the vTPM even when one is enabled by a preference referenced by the VirtualMachine Defaults to True",
+							Description: "Enabled allows a user to explicitly disable the vTPM even when one is enabled by a preference referenced by the VirtualMachine Defaults to True",
 							Type:        []string{"boolean"},
 							Format:      "",
 						},
@@ -25266,7 +25287,7 @@ func schema_kubevirtio_api_core_v1_VirtualMachineInstanceGuestAgentInfo(ref comm
 					},
 					"fsFreezeStatus": {
 						SchemaProps: spec.SchemaProps{
-							Description: "FSFreezeStatus is the state of the fs of the guest it can be either frozen or thawed",
+							Description: "FSFreezeStatus indicates whether a freeze operation was requested for the guest filesystem. It will be set to \"frozen\" if the request was made, or unset otherwise. This does not reflect the actual state of the guest filesystem.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -26816,7 +26837,7 @@ func schema_kubevirtio_api_core_v1_VirtualMachineInstanceStatus(ref common.Refer
 					},
 					"fsFreezeStatus": {
 						SchemaProps: spec.SchemaProps{
-							Description: "FSFreezeStatus is the state of the fs of the guest it can be either frozen or thawed",
+							Description: "FSFreezeStatus indicates whether a freeze operation was requested for the guest filesystem. It will be set to \"frozen\" if the request was made, or unset otherwise. This does not reflect the actual state of the guest filesystem.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -27813,12 +27834,18 @@ func schema_kubevirtio_api_core_v1_Watchdog(ref common.ReferenceCallback) common
 							Ref:         ref("kubevirt.io/api/core/v1.I6300ESBWatchdog"),
 						},
 					},
+					"diag288": {
+						SchemaProps: spec.SchemaProps{
+							Description: "diag288 watchdog device (specific to s390x architecture).",
+							Ref:         ref("kubevirt.io/api/core/v1.Diag288Watchdog"),
+						},
+					},
 				},
 				Required: []string{"name"},
 			},
 		},
 		Dependencies: []string{
-			"kubevirt.io/api/core/v1.I6300ESBWatchdog"},
+			"kubevirt.io/api/core/v1.Diag288Watchdog", "kubevirt.io/api/core/v1.I6300ESBWatchdog"},
 	}
 }
 
@@ -27835,11 +27862,17 @@ func schema_kubevirtio_api_core_v1_WatchdogDevice(ref common.ReferenceCallback) 
 							Ref:         ref("kubevirt.io/api/core/v1.I6300ESBWatchdog"),
 						},
 					},
+					"diag288": {
+						SchemaProps: spec.SchemaProps{
+							Description: "diag288 watchdog device (specific to s390x architecture).",
+							Ref:         ref("kubevirt.io/api/core/v1.Diag288Watchdog"),
+						},
+					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"kubevirt.io/api/core/v1.I6300ESBWatchdog"},
+			"kubevirt.io/api/core/v1.Diag288Watchdog", "kubevirt.io/api/core/v1.I6300ESBWatchdog"},
 	}
 }
 
@@ -32719,7 +32752,7 @@ func schema_kubevirtio_api_snapshot_v1alpha1_VirtualMachineRestoreSpec(ref commo
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "If the target for the restore does not exist, it will be created. Patches holds JSON patches that would be applied to the target manifest before it's created. Patches should fit the target's Kind.\n\nExample for a patch: {\"op\": \"replace\", \"path\": \"/metadata/name\", \"value\": \"new-vm-name\"}",
+							Description: "If the target for the restore does not exist, it will be created. Patches holds JSON patches that would be applied to the target manifest before it's created. Patches should fit the target's Kind.\n\nExample for a patch: {\"op\": \"replace\", \"path\": \"/spec/template/spec/domain/devices/interfaces/0/macAddress\", \"value\": \"00:00:5e:00:53:01\"}",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{

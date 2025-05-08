@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Copyright 2023 Red Hat, Inc.
+ * Copyright The KubeVirt Authors.
  *
  */
 
@@ -322,6 +322,7 @@ var _ = Describe("domain network interfaces resources", func() {
 		domxml, err := xml.MarshalIndent(domainSpec, "", "\t")
 		Expect(err).ToNot(HaveOccurred())
 		mockDomain.EXPECT().GetXMLDesc(libvirt.DOMAIN_XML_INACTIVE).Return(string(domxml), nil)
+		mockDomain.EXPECT().Free()
 
 		originalDomainSpec := domainSpec.DeepCopy()
 		countCalls := 0

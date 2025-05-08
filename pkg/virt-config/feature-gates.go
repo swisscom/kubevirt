@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Copyright 2017, 2018 Red Hat, Inc.
+ * Copyright The KubeVirt Authors.
  *
  */
 
@@ -167,6 +167,10 @@ func (config *ClusterConfig) MultiArchitectureEnabled() bool {
 
 func (config *ClusterConfig) AlignCPUsEnabled() bool {
 	return config.isFeatureGateEnabled(featuregate.AlignCPUsGate)
+}
+
+func (config *ClusterConfig) ImageVolumeEnabled() bool {
+	return config.isFeatureGateEnabled(featuregate.ImageVolume)
 }
 
 func (config *ClusterConfig) NodeRestrictionEnabled() bool {

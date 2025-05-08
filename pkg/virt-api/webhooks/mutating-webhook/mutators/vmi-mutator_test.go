@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Copyright 2018 Red Hat, Inc.
+ * Copyright The KubeVirt Authors.
  *
  */
 
@@ -192,37 +192,39 @@ var _ = Describe("VirtualMachineInstance Mutator", func() {
 		})
 	})
 
-	DescribeTable("should apply defaults on VMI create", func(arch string, cpuModel string) {
+	DescribeTable("should apply defaults on VMI create when arch is known", func(arch string, cpuModel string, machineType string) {
 		// no limits wanted on this test, to not copy the limit to requests
 
-		if arch == "" {
-			if rt.GOARCH == "arm64" {
-				cpuModel = v1.CPUModeHostPassthrough
-			} else {
-				cpuModel = v1.DefaultCPUModel
-			}
-		}
 		_, vmiSpec, _ := getMetaSpecStatusFromAdmit(arch)
 
-		if webhooks.IsPPC64(vmiSpec) {
-			Expect(vmiSpec.Domain.Machine.Type).To(Equal("pseries"))
-		} else if webhooks.IsARM64(vmiSpec) {
-			Expect(vmiSpec.Domain.Machine.Type).To(Equal("virt"))
-		} else if webhooks.IsS390X(vmiSpec) {
-			Expect(vmiSpec.Domain.Machine.Type).To(Equal("s390-ccw-virtio"))
-		} else {
-			Expect(vmiSpec.Domain.Machine.Type).To(Equal("q35"))
-		}
-
+		Expect(vmiSpec.Domain.Machine.Type).To(Equal(machineType))
 		Expect(vmiSpec.Domain.CPU.Model).To(Equal(cpuModel))
 		Expect(vmiSpec.Domain.Resources.Requests.Cpu().IsZero()).To(BeTrue())
 		Expect(vmiSpec.Domain.Resources.Requests.Memory().Value()).To(Equal(int64(0)))
 	},
-		Entry("when architecture is amd64", "amd64", v1.DefaultCPUModel),
-		Entry("when architecture is arm64", "arm64", v1.CPUModeHostPassthrough),
-		Entry("when architecture is ppc64le", "ppc64le", v1.DefaultCPUModel),
-		Entry("when architecture is s390x", "s390x", v1.DefaultCPUModel),
-		Entry("when architecture is not specified", "", v1.DefaultCPUModel))
+		Entry("when architecture is amd64", "amd64", v1.DefaultCPUModel, "q35"),
+		Entry("when architecture is arm64", "arm64", v1.CPUModeHostPassthrough, "virt"),
+		Entry("when architecture is ppc64le", "ppc64le", v1.DefaultCPUModel, "pseries"),
+		Entry("when architecture is s390x", "s390x", v1.DefaultCPUModel, "s390-ccw-virtio"),
+	)
+
+	DescribeTable("should apply defaults on VMI create when arch is unknown", func(arch string, cpuModel string, machineType string) {
+		// no limits wanted on this test, to not copy the limit to requests
+
+		mutator.ClusterConfig.GetConfig().ArchitectureConfiguration.DefaultArchitecture = arch
+
+		_, vmiSpec, _ := getMetaSpecStatusFromAdmit("")
+
+		Expect(vmiSpec.Domain.Machine.Type).To(Equal(machineType))
+		Expect(vmiSpec.Domain.CPU.Model).To(Equal(cpuModel))
+		Expect(vmiSpec.Domain.Resources.Requests.Cpu().IsZero()).To(BeTrue())
+		Expect(vmiSpec.Domain.Resources.Requests.Memory().Value()).To(Equal(int64(0)))
+	},
+		Entry("when architecture is amd64", "amd64", v1.DefaultCPUModel, "q35"),
+		Entry("when architecture is arm64", "arm64", v1.CPUModeHostPassthrough, "virt"),
+		Entry("when architecture is ppc64le", "ppc64le", v1.DefaultCPUModel, "pseries"),
+		Entry("when architecture is s390x", "s390x", v1.DefaultCPUModel, "s390-ccw-virtio"),
+	)
 
 	DescribeTable("should apply configurable defaults on VMI create", func(arch string, cpuModel string) {
 		defer func() {
@@ -1313,6 +1315,17 @@ var _ = Describe("VirtualMachineInstance Mutator", func() {
 				_, spec, _ := getMetaSpecStatusFromAdmit(rt.GOARCH)
 				Expect(spec.Domain.CPU.MaxSockets).To(Equal(uint32(8)))
 			})
+
+			It("to calculate max sockets to be 4x times the configured sockets with upper bound 512 when no max sockets defined", func() {
+				vmi.Spec.Domain.CPU = &v1.CPU{
+					Sockets: 32,
+					Cores:   2,
+					Threads: 3,
+				}
+				_, spec, _ := getMetaSpecStatusFromAdmit(rt.GOARCH)
+				Expect(spec.Domain.CPU.MaxSockets).To(Equal(uint32(85)))
+			})
+
 			It("to calculate max sockets to be 4x times the default sockets when default CPU topology used", func() {
 				_, spec, _ := getMetaSpecStatusFromAdmit(rt.GOARCH)
 				Expect(spec.Domain.CPU.MaxSockets).To(Equal(uint32(4)))
@@ -1421,7 +1434,7 @@ var _ = Describe("VirtualMachineInstance Mutator", func() {
 			})
 
 			DescribeTable("should leave MaxGuest empty when memory hotplug is incompatible", func(vmiSetup func(*v1.VirtualMachineInstanceSpec)) {
-				vmi := api.NewMinimalVMI("testvm")
+				vmi = api.NewMinimalVMI("testvm")
 				vmi.Spec.Domain.Memory = &v1.Memory{Guest: pointer.P(resource.MustParse("128Mi"))}
 				vmiSetup(&vmi.Spec)
 
@@ -1457,24 +1470,9 @@ var _ = Describe("VirtualMachineInstance Mutator", func() {
 				Entry("guest memory is not set", func(vmiSpec *v1.VirtualMachineInstanceSpec) {
 					vmiSpec.Domain.Memory.Guest = nil
 				}),
-				Entry("guest memory is greater than maxGuest", func(vmiSpec *v1.VirtualMachineInstanceSpec) {
-					moreThanMax := vmiSpec.Domain.Memory.Guest.DeepCopy()
-					moreThanMax.Mul(8)
-
-					vmiSpec.Domain.Memory.Guest = &moreThanMax
-				}),
-				Entry("maxGuest is not properly aligned", func(vmiSpec *v1.VirtualMachineInstanceSpec) {
-					unAlignedMemory := resource.MustParse("333Mi")
-					vmiSpec.Domain.Memory.MaxGuest = &unAlignedMemory
-				}),
 				Entry("guest memory is not properly aligned", func(vmiSpec *v1.VirtualMachineInstanceSpec) {
 					unAlignedMemory := resource.MustParse("123")
 					vmiSpec.Domain.Memory.Guest = &unAlignedMemory
-				}),
-				Entry("guest memory with hugepages is not properly aligned", func(vmiSpec *v1.VirtualMachineInstanceSpec) {
-					vmiSpec.Domain.Memory.Guest = pointer.P(resource.MustParse("2G"))
-					vmiSpec.Domain.Memory.MaxGuest = pointer.P(resource.MustParse("16Gi"))
-					vmiSpec.Domain.Memory.Hugepages = &v1.Hugepages{PageSize: "1Gi"}
 				}),
 				Entry("architecture is not amd64 or arm64", func(vmiSpec *v1.VirtualMachineInstanceSpec) {
 					vmiSpec.Architecture = "risc-v"

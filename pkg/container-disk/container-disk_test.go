@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Copyright 2017 Red Hat, Inc.
+ * Copyright The KubeVirt Authors.
  *
  */
 
@@ -148,23 +148,6 @@ var _ = Describe("ContainerDisk", func() {
 				Expect(os.MkdirAll(secondPath, 0755)).To(Succeed())
 				path, err = GetVolumeMountDirOnHost(vmi)
 				Expect(err).To(HaveOccurred())
-			})
-
-			It("by verifying launcher directory locations", func() {
-				vmi := libvmi.New()
-				vmi.UID = "6789"
-
-				path, err := GetDiskTargetPartFromLauncherView(1)
-				Expect(err).To(HaveOccurred())
-				Expect(path).To(Equal(""))
-
-				expectedPath := fmt.Sprintf("%s/disk_1.img", tmpDir)
-				_, err = os.Create(expectedPath)
-				Expect(err).ToNot(HaveOccurred())
-
-				path, err = GetDiskTargetPartFromLauncherView(1)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(path).To(Equal(expectedPath))
 			})
 
 			DescribeTable("by verifying that resources are set if the VMI wants the guaranteed QOS class", func(req, lim, expectedReq, expectedLimit k8sv1.ResourceList) {

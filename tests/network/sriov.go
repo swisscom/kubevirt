@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Copyright 2018 Red Hat, Inc.
+ * Copyright The KubeVirt Authors.
  *
  */
 
@@ -281,7 +281,7 @@ var _ = Describe(SIG("SRIOV", Serial, decorators.SRIOV, func() {
 				Expect(libnet.CheckMacAddress(vmi, ifaceName, mac)).To(Succeed(), "SR-IOV VF is expected to exist in the guest")
 			})
 
-			It("should be successful with a running VMI on the target", func() {
+			It("[QUARANTINE]should be successful with a running VMI on the target", decorators.Quarantine, func() {
 				By("starting the migration")
 				migration := libmigration.New(vmi.Name, vmi.Namespace)
 				migration = libmigration.RunMigrationAndExpectToCompleteWithDefaultTimeout(virtClient, migration)

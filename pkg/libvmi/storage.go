@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Copyright 2020 Red Hat, Inc.
+ * Copyright The KubeVirt Authors.
  *
  */
 
@@ -78,7 +78,15 @@ func WithEphemeralPersistentVolumeClaim(diskName, pvcName string, diskOpts ...Di
 func WithDataVolume(diskName, pvcName string, diskOpts ...DiskOption) Option {
 	return func(vmi *v1.VirtualMachineInstance) {
 		addDisk(vmi, newDisk(diskName, v1.DiskBusVirtio, diskOpts...))
-		addVolume(vmi, newDataVolume(diskName, pvcName))
+		addVolume(vmi, newDataVolume(diskName, pvcName, false))
+	}
+}
+
+// WithHotplugDataVolume specifies the name of the hotpluggable DataVolume to be used.
+func WithHotplugDataVolume(diskName, pvcName string, diskOpts ...DiskOption) Option {
+	return func(vmi *v1.VirtualMachineInstance) {
+		addDisk(vmi, newDisk(diskName, v1.DiskBusSCSI, diskOpts...))
+		addVolume(vmi, newDataVolume(diskName, pvcName, true))
 	}
 }
 
@@ -123,7 +131,7 @@ func WithFilesystemPVC(claimName string) Option {
 func WithFilesystemDV(dataVolumeName string) Option {
 	return func(vmi *v1.VirtualMachineInstance) {
 		addFilesystem(vmi, newVirtiofsFilesystem(dataVolumeName))
-		addVolume(vmi, newDataVolume(dataVolumeName, dataVolumeName))
+		addVolume(vmi, newDataVolume(dataVolumeName, dataVolumeName, false))
 	}
 }
 
@@ -134,18 +142,26 @@ func WithPersistentVolumeClaimLun(diskName, pvcName string, reservation bool) Op
 	}
 }
 
-func WithHostDisk(diskName, path string, diskType v1.HostDiskType) Option {
+func WithHostDisk(diskName, path string, diskType v1.HostDiskType, opts ...HostDiskOption) Option {
 	var capacity string
 	if diskType == v1.HostDiskExistsOrCreate {
 		capacity = defaultDiskSize
 	}
-	return WithHostDiskAndCapacity(diskName, path, diskType, capacity)
+	return WithHostDiskAndCapacity(diskName, path, diskType, capacity, opts...)
 }
 
-func WithHostDiskAndCapacity(diskName, path string, diskType v1.HostDiskType, capacity string) Option {
+func WithHostDiskAndCapacity(diskName, path string, diskType v1.HostDiskType, capacity string, opts ...HostDiskOption) Option {
 	return func(vmi *v1.VirtualMachineInstance) {
 		addDisk(vmi, newDisk(diskName, v1.DiskBusVirtio))
-		addVolume(vmi, newHostDisk(diskName, path, diskType, capacity))
+		addVolume(vmi, newHostDisk(diskName, path, diskType, capacity, opts...))
+	}
+}
+
+type HostDiskOption func(v *v1.Volume)
+
+func WithSharedHostDisk(shared bool) HostDiskOption {
+	return func(v *v1.Volume) {
+		v.HostDisk.Shared = pointer.P(shared)
 	}
 }
 
@@ -317,12 +333,13 @@ func newEphemeralPersistentVolumeClaimVolume(name, claimName string) v1.Volume {
 	}
 }
 
-func newDataVolume(name, dataVolumeName string) v1.Volume {
+func newDataVolume(name, dataVolumeName string, hotpluggable bool) v1.Volume {
 	return v1.Volume{
 		Name: name,
 		VolumeSource: v1.VolumeSource{
 			DataVolume: &v1.DataVolumeSource{
-				Name: dataVolumeName,
+				Name:         dataVolumeName,
+				Hotpluggable: hotpluggable,
 			},
 		},
 	}
@@ -339,7 +356,7 @@ func newEmptyDisk(name string, capacity resource.Quantity) v1.Volume {
 	}
 }
 
-func newHostDisk(name, path string, diskType v1.HostDiskType, capacity string) v1.Volume {
+func newHostDisk(name, path string, diskType v1.HostDiskType, capacity string, opts ...HostDiskOption) v1.Volume {
 	hostDisk := v1.HostDisk{
 		Path: path,
 		Type: diskType,
@@ -350,10 +367,25 @@ func newHostDisk(name, path string, diskType v1.HostDiskType, capacity string) v
 		hostDisk.Capacity = resource.MustParse(capacity)
 	}
 
-	return v1.Volume{
+	v := v1.Volume{
 		Name: name,
 		VolumeSource: v1.VolumeSource{
 			HostDisk: &hostDisk,
 		},
+	}
+
+	for _, f := range opts {
+		f(&v)
+	}
+
+	return v
+}
+
+func WithSupplementalPoolThreadCount(count uint32) Option {
+	return func(vmi *v1.VirtualMachineInstance) {
+		if vmi.Spec.Domain.IOThreads == nil {
+			vmi.Spec.Domain.IOThreads = &v1.DiskIOThreads{}
+		}
+		vmi.Spec.Domain.IOThreads.SupplementalPoolThreadCount = pointer.P(count)
 	}
 }

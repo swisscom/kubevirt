@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Copyright 2018 Red Hat, Inc.
+ * Copyright The KubeVirt Authors.
  *
  */
 
@@ -34,6 +34,7 @@ import (
 
 	"kubevirt.io/kubevirt/pkg/storage/reservation"
 	virtconfig "kubevirt.io/kubevirt/pkg/virt-config"
+	"kubevirt.io/kubevirt/pkg/virt-handler/selinux"
 )
 
 var defaultBackoffTime = []time.Duration{1 * time.Second, 2 * time.Second, 5 * time.Second, 10 * time.Second}
@@ -191,7 +192,12 @@ func (c *DeviceController) updatePermittedHostDevicePlugins() []Device {
 	}
 
 	if c.virtConfig.PersistentReservationEnabled() {
-		permittedDevices = append(permittedDevices, NewSocketDevicePlugin(reservation.GetPrResourceName(), reservation.GetPrHelperSocketDir(), reservation.GetPrHelperSocket(), c.maxDevices))
+		d, err := NewSocketDevicePlugin(reservation.GetPrResourceName(), reservation.GetPrHelperSocketDir(), reservation.GetPrHelperSocket(), c.maxDevices, selinux.SELinuxExecutor{}, NewPermissionManager())
+		if err != nil {
+			log.Log.Reason(err).Errorf("failed to configure the desired mdev types, failed to get node details")
+		} else {
+			permittedDevices = append(permittedDevices, d)
+		}
 	}
 
 	hostDevs := c.virtConfig.GetPermittedHostDevices()
@@ -250,7 +256,6 @@ func removeSelectorSpaces(selectorName string) string {
 	typeNameStr := strings.Replace(string(selectorName), " ", "_", -1)
 	typeNameStr = strings.TrimSpace(typeNameStr)
 	return typeNameStr
-
 }
 
 func (c *DeviceController) splitPermittedDevices(devices []Device) (map[string]Device, map[string]struct{}) {

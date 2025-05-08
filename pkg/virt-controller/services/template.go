@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Copyright 2017, 2018 Red Hat, Inc.
+ * Copyright The KubeVirt Authors.
  *
  */
 
@@ -143,8 +143,6 @@ type TemplateService interface {
 	RenderExporterManifest(vmExport *exportv1.VirtualMachineExport, namePrefix string) *k8sv1.Pod
 	GetLauncherImage() string
 	IsPPC64() bool
-	IsARM64() bool
-	IsS390X() bool
 }
 
 type templateService struct {
@@ -319,14 +317,6 @@ func (t *templateService) IsPPC64() bool {
 	return t.clusterConfig.GetClusterCPUArch() == "ppc64le"
 }
 
-func (t *templateService) IsARM64() bool {
-	return t.clusterConfig.GetClusterCPUArch() == "arm64"
-}
-
-func (t *templateService) IsS390X() bool {
-	return t.clusterConfig.GetClusterCPUArch() == "s390x"
-}
-
 func generateQemuTimeoutWithJitter(qemuTimeoutBaseSeconds int) string {
 	timeout := rand.Intn(qemuTimeoutJitterRange) + qemuTimeoutBaseSeconds
 
@@ -369,6 +359,11 @@ func (t *templateService) renderLaunchManifest(vmi *v1.VirtualMachineInstance, i
 	gracePeriodSeconds := gracePeriodInSeconds(vmi)
 
 	imagePullSecrets := imgPullSecrets(vmi.Spec.Volumes...)
+	if util.HasKernelBootContainerImage(vmi) && vmi.Spec.Domain.Firmware.KernelBoot.Container.ImagePullSecret != "" {
+		imagePullSecrets = appendUniqueImagePullSecret(imagePullSecrets, k8sv1.LocalObjectReference{
+			Name: vmi.Spec.Domain.Firmware.KernelBoot.Container.ImagePullSecret,
+		})
+	}
 	if t.imagePullSecret != "" {
 		imagePullSecrets = appendUniqueImagePullSecret(imagePullSecrets, k8sv1.LocalObjectReference{
 			Name: t.imagePullSecret,
@@ -404,8 +399,6 @@ func (t *templateService) renderLaunchManifest(vmi *v1.VirtualMachineInstance, i
 	}
 
 	var command []string
-	var qemuTimeout = generateQemuTimeoutWithJitter(t.launcherQemuTimeout)
-
 	if tempPod {
 		logger := log.DefaultLogger()
 		logger.Infof("RUNNING doppleganger pod for %s", vmi.Name)
@@ -414,7 +407,7 @@ func (t *templateService) renderLaunchManifest(vmi *v1.VirtualMachineInstance, i
 			"echo", "bound PVCs"}
 	} else {
 		command = []string{"/usr/bin/virt-launcher-monitor",
-			"--qemu-timeout", qemuTimeout,
+			"--qemu-timeout", generateQemuTimeoutWithJitter(t.launcherQemuTimeout),
 			"--name", domain,
 			"--uid", string(vmi.UID),
 			"--namespace", namespace,
@@ -428,6 +421,9 @@ func (t *templateService) renderLaunchManifest(vmi *v1.VirtualMachineInstance, i
 		}
 		if nonRoot {
 			command = append(command, "--run-as-nonroot")
+		}
+		if t.clusterConfig.ImageVolumeEnabled() {
+			command = append(command, "--image-volume")
 		}
 		if customDebugFilters, exists := vmi.Annotations[v1.CustomLibvirtLogFiltersAnnotation]; exists {
 			log.Log.Object(vmi).Infof("Applying custom debug filters for vmi %s: %s", vmi.Name, customDebugFilters)
@@ -497,23 +493,20 @@ func (t *templateService) renderLaunchManifest(vmi *v1.VirtualMachineInstance, i
 	// Make sure the compute container is always the first since the mutating webhook shipped with the sriov operator
 	// for adding the requested resources to the pod will add them to the first container of the list
 	containers := []k8sv1.Container{compute}
-	containersDisks := containerdisk.GenerateContainers(vmi, t.clusterConfig, imageIDs, containerDisks, virtBinDir)
-	containers = append(containers, containersDisks...)
+	if !t.clusterConfig.ImageVolumeEnabled() {
+		containersDisks := containerdisk.GenerateContainers(vmi, t.clusterConfig, imageIDs, containerDisks, virtBinDir)
+		containers = append(containers, containersDisks...)
 
-	kernelBootContainer := containerdisk.GenerateKernelBootContainer(vmi, t.clusterConfig, imageIDs, containerDisks, virtBinDir)
-	if kernelBootContainer != nil {
-		log.Log.Object(vmi).Infof("kernel boot container generated")
-		containers = append(containers, *kernelBootContainer)
+		kernelBootContainer := containerdisk.GenerateKernelBootContainer(vmi, t.clusterConfig, imageIDs, containerDisks, virtBinDir)
+		if kernelBootContainer != nil {
+			log.Log.Object(vmi).Infof("kernel boot container generated")
+			containers = append(containers, *kernelBootContainer)
+		}
 	}
 
 	virtiofsContainers := generateVirtioFSContainers(vmi, t.launcherImage, t.clusterConfig)
 	if virtiofsContainers != nil {
 		containers = append(containers, virtiofsContainers...)
-	}
-
-	sconsolelogContainer := generateSerialConsoleLogContainer(vmi, t.launcherImage, t.clusterConfig, virtLauncherLogVerbosity, qemuTimeout)
-	if sconsolelogContainer != nil {
-		containers = append(containers, *sconsolelogContainer)
 	}
 
 	var sidecarVolumes []k8sv1.Volume
@@ -571,7 +564,12 @@ func (t *templateService) renderLaunchManifest(vmi *v1.VirtualMachineInstance, i
 
 	var initContainers []k8sv1.Container
 
-	if HaveContainerDiskVolume(vmi.Spec.Volumes) || util.HasKernelBootContainerImage(vmi) {
+	sconsolelogContainer := generateSerialConsoleLogContainer(vmi, t.launcherImage, t.clusterConfig, virtLauncherLogVerbosity)
+	if sconsolelogContainer != nil {
+		initContainers = append(initContainers, *sconsolelogContainer)
+	}
+
+	if !t.clusterConfig.ImageVolumeEnabled() && (HaveContainerDiskVolume(vmi.Spec.Volumes) || util.HasKernelBootContainerImage(vmi)) {
 		initContainerCommand := []string{"/usr/bin/cp",
 			"/usr/bin/container-disk",
 			"/init/usr/bin/container-disk",
@@ -821,11 +819,15 @@ func (t *templateService) newContainerSpecRenderer(vmi *v1.VirtualMachineInstanc
 }
 
 func (t *templateService) newVolumeRenderer(vmi *v1.VirtualMachineInstance, namespace string, requestedHookSidecarList hooks.HookSidecarList, backendStoragePVCName string) (*VolumeRenderer, error) {
+	imageVolumeFeatureGateEnabled := t.clusterConfig.ImageVolumeEnabled()
 	volumeOpts := []VolumeRendererOption{
 		withVMIConfigVolumes(vmi.Spec.Domain.Devices.Disks, vmi.Spec.Volumes),
 		withVMIVolumes(t.persistentVolumeClaimStore, vmi.Spec.Volumes, vmi.Status.VolumeStatus),
 		withAccessCredentials(vmi.Spec.AccessCredentials),
 		withBackendStorage(vmi, backendStoragePVCName),
+	}
+	if imageVolumeFeatureGateEnabled {
+		volumeOpts = append(volumeOpts, withImageVolumes(vmi))
 	}
 	if len(requestedHookSidecarList) != 0 {
 		volumeOpts = append(volumeOpts, withSidecarVolumes(requestedHookSidecarList))
@@ -853,6 +855,7 @@ func (t *templateService) newVolumeRenderer(vmi *v1.VirtualMachineInstance, name
 	}
 
 	volumeRenderer, err := NewVolumeRenderer(
+		imageVolumeFeatureGateEnabled,
 		namespace,
 		t.ephemeralDiskDir,
 		t.containerDiskDir,
@@ -1503,8 +1506,8 @@ func (t *templateService) VMIResourcePredicates(vmi *v1.VirtualMachineInstance, 
 	return VMIResourcePredicates{
 		vmi: vmi,
 		resourceRules: []VMIResourceRule{
-			NewVMIResourceRule(doesVMIRequireDedicatedCPU, WithCPUPinning(vmi.Spec.Domain.CPU, vmi.Annotations, additionalCPUs)),
-			NewVMIResourceRule(not(doesVMIRequireDedicatedCPU), WithoutDedicatedCPU(vmi.Spec.Domain.CPU, t.clusterConfig.GetCPUAllocationRatio(), withCPULimits)),
+			NewVMIResourceRule(doesVMIRequireDedicatedCPU, WithCPUPinning(vmi, vmi.Annotations, additionalCPUs)),
+			NewVMIResourceRule(not(doesVMIRequireDedicatedCPU), WithoutDedicatedCPU(vmi, t.clusterConfig.GetCPUAllocationRatio(), withCPULimits)),
 			NewVMIResourceRule(hasHugePages, WithHugePages(vmi.Spec.Domain.Memory, memoryOverhead)),
 			NewVMIResourceRule(not(hasHugePages), WithMemoryOverhead(vmi.Spec.Domain.Resources, memoryOverhead)),
 			NewVMIResourceRule(t.doesVMIRequireAutoMemoryLimits, WithAutoMemoryLimits(vmi.Namespace, t.namespaceStore)),
@@ -1515,7 +1518,6 @@ func (t *templateService) VMIResourcePredicates(vmi *v1.VirtualMachineInstance, 
 			NewVMIResourceRule(util.IsHostDevVMI, WithHostDevices(vmi.Spec.Domain.Devices.HostDevices)),
 			NewVMIResourceRule(util.IsSEVVMI, WithSEV()),
 			NewVMIResourceRule(reservation.HasVMIPersistentReservation, WithPersistentReservation()),
-			NewVMIResourceRule(doesVMIRequireCPUForIOThreads, WithIOThreads(vmi.Spec.Domain.IOThreads)),
 		},
 	}
 }

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Copyright 2017 Red Hat, Inc.
+ * Copyright The KubeVirt Authors.
  *
  */
 
@@ -3488,7 +3488,7 @@ var _ = Describe("VirtualMachineInstance watcher", func() {
 					{Type: cdiv1.DataVolumeReady, Status: k8sv1.ConditionTrue},
 				},
 				k8sv1.ConditionTrue,
-				"All of the VMI's DVs are bound and not running",
+				"All of the VMI's DVs are bound and ready",
 			),
 			Entry("2 ready DataVolumes, 1 not ready",
 				[]cdiv1.DataVolumeCondition{

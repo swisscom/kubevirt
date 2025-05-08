@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Copyright 2017 Red Hat, Inc.
+ * Copyright The KubeVirt Authors.
  *
  */
 
@@ -528,6 +528,7 @@ type VirDomain interface {
 	GetGuestInfo(types libvirt.DomainGuestInfoTypes, flags uint32) (*libvirt.DomainGuestInfo, error)
 	GetDiskErrors(flags uint32) ([]libvirt.DomainDiskError, error)
 	SetTime(secs int64, nsecs uint, flags libvirt.DomainSetTimeFlags) error
+	SetUserPassword(user string, password string, flags libvirt.DomainSetUserPasswordFlags) error
 	AuthorizedSSHKeysSet(user string, keys []string, flags libvirt.DomainAuthorizedSSHKeysFlags) error
 	AbortJob() error
 	Free() error
@@ -537,6 +538,8 @@ type VirDomain interface {
 	SetVcpusFlags(vcpu uint, flags libvirt.DomainVcpuFlags) error
 	GetLaunchSecurityInfo(flags uint32) (*libvirt.DomainLaunchSecurityParameters, error)
 	SetLaunchSecurityState(params *libvirt.DomainLaunchSecurityStateParameters, flags uint32) error
+	FSFreeze(mounts []string, flags uint32) error
+	FSThaw(mounts []string, flags uint32) error
 }
 
 func NewConnection(uri string, user string, pass string, checkInterval time.Duration) (Connection, error) {

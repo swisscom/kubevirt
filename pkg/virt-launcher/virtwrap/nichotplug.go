@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Copyright 2023 Red Hat, Inc.
+ * Copyright The KubeVirt Authors.
  *
  */
 
@@ -225,6 +225,8 @@ func withNetworkIfacesResources(vmi *v1.VirtualMachineInstance, domainSpec *api.
 	if len(domainSpec.Devices.Interfaces) == len(domainSpecWithIfacesResource.Devices.Interfaces) {
 		return dom, nil
 	}
+
+	defer dom.Free()
 
 	domainSpecWithoutIfacePlaceholders, err := util.GetDomainSpecWithFlags(dom, libvirt.DOMAIN_XML_INACTIVE)
 	if err != nil {

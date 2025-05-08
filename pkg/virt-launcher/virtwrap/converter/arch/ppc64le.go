@@ -17,6 +17,8 @@
 package arch
 
 import (
+	"fmt"
+
 	v1 "kubevirt.io/api/core/v1"
 
 	"kubevirt.io/kubevirt/pkg/pointer"
@@ -83,5 +85,13 @@ func (converterPPC64) ShouldVerboseLogsBeEnabled() bool {
 }
 
 func (converterPPC64) HasVMPort() bool {
+	return false
+}
+
+func (converterPPC64) ConvertWatchdog(source *v1.Watchdog, watchdog *api.Watchdog) error {
+	return fmt.Errorf("watchdog is not supported on architecture PPC64")
+}
+
+func (converterPPC64) SupportPCIHole64Disabling() bool {
 	return false
 }

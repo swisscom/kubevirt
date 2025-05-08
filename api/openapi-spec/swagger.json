@@ -13396,6 +13396,16 @@
      }
     }
    },
+   "v1.Diag288Watchdog": {
+    "description": "diag288 watchdog device.",
+    "type": "object",
+    "properties": {
+     "action": {
+      "description": "The action to take. Valid values are poweroff, reset, shutdown. Defaults to reset.",
+      "type": "string"
+     }
+    }
+   },
    "v1.DisableFreePageReporting": {
     "type": "object"
    },
@@ -13418,7 +13428,7 @@
       "format": "int32"
      },
      "cache": {
-      "description": "Cache specifies which kvm disk cache mode should be used. Supported values are: CacheNone, CacheWriteThrough.",
+      "description": "Cache specifies which kvm disk cache mode should be used. Supported values are: none: Guest I/O not cached on the host, but may be kept in a disk cache. writethrough: Guest I/O cached on the host but written through to the physical medium. Slowest but with most guarantees. writeback: Guest I/O cached on the host. Defaults to none if the storage supports O_DIRECT, otherwise writethrough.",
       "type": "string"
      },
      "cdrom": {
@@ -16156,7 +16166,7 @@
     "type": "object",
     "properties": {
      "enabled": {
-      "description": "Enabled allows a user to explictly disable the vTPM even when one is enabled by a preference referenced by the VirtualMachine Defaults to True",
+      "description": "Enabled allows a user to explicitly disable the vTPM even when one is enabled by a preference referenced by the VirtualMachine Defaults to True",
       "type": "boolean"
      },
      "persistent": {
@@ -16590,7 +16600,7 @@
       "type": "string"
      },
      "fsFreezeStatus": {
-      "description": "FSFreezeStatus is the state of the fs of the guest it can be either frozen or thawed",
+      "description": "FSFreezeStatus indicates whether a freeze operation was requested for the guest filesystem. It will be set to \"frozen\" if the request was made, or unset otherwise. This does not reflect the actual state of the guest filesystem.",
       "type": "string"
      },
      "fsInfo": {
@@ -17463,7 +17473,7 @@
       "type": "string"
      },
      "fsFreezeStatus": {
-      "description": "FSFreezeStatus is the state of the fs of the guest it can be either frozen or thawed",
+      "description": "FSFreezeStatus indicates whether a freeze operation was requested for the guest filesystem. It will be set to \"frozen\" if the request was made, or unset otherwise. This does not reflect the actual state of the guest filesystem.",
       "type": "string"
      },
      "guestOSInfo": {
@@ -18038,6 +18048,10 @@
      "name"
     ],
     "properties": {
+     "diag288": {
+      "description": "diag288 watchdog device (specific to s390x architecture).",
+      "$ref": "#/definitions/v1.Diag288Watchdog"
+     },
      "i6300esb": {
       "description": "i6300esb watchdog device.",
       "$ref": "#/definitions/v1.I6300ESBWatchdog"

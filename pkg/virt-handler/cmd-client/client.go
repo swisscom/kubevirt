@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Copyright 2017 Red Hat, Inc.
+ * Copyright The KubeVirt Authors.
  *
  */
 
@@ -319,6 +319,7 @@ func (c *VirtLauncherClient) genericSendVMICmd(cmdName string,
 	err = handleError(err, cmdName, response)
 	return err
 }
+
 func IsUnimplemented(err error) bool {
 	if grpcStatus, ok := status.FromError(err); ok {
 		if grpcStatus.Code() == codes.Unimplemented {

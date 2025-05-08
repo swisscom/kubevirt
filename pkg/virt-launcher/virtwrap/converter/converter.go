@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Copyright 2017, 2018 Red Hat, Inc.
+ * Copyright The KubeVirt Authors.
  *
 */
 
@@ -855,16 +855,6 @@ func Convert_v1_EphemeralVolumeSource_To_api_Disk(volumeName string, disk *api.D
 	return nil
 }
 
-func Convert_v1_Watchdog_To_api_Watchdog(source *v1.Watchdog, watchdog *api.Watchdog, _ *ConverterContext) error {
-	watchdog.Alias = api.NewUserDefinedAlias(source.Name)
-	if source.I6300ESB != nil {
-		watchdog.Model = "i6300esb"
-		watchdog.Action = string(source.I6300ESB.Action)
-		return nil
-	}
-	return fmt.Errorf("watchdog %s can't be mapped, no watchdog type specified", source.Name)
-}
-
 func Convert_v1_Rng_To_api_Rng(_ *v1.Rng, rng *api.Rng, c *ConverterContext) error {
 
 	// default rng model for KVM/QEMU virtualization
@@ -1635,7 +1625,7 @@ func Convert_v1_VirtualMachineInstance_To_api_Domain(vmi *v1.VirtualMachineInsta
 
 	if vmi.Spec.Domain.Devices.Watchdog != nil {
 		newWatchdog := &api.Watchdog{}
-		err := Convert_v1_Watchdog_To_api_Watchdog(vmi.Spec.Domain.Devices.Watchdog, newWatchdog, c)
+		err := c.Architecture.ConvertWatchdog(vmi.Spec.Domain.Devices.Watchdog, newWatchdog)
 		if err != nil {
 			return err
 		}
@@ -1686,6 +1676,20 @@ func Convert_v1_VirtualMachineInstance_To_api_Domain(vmi *v1.VirtualMachineInsta
 	if needsSCSIController(vmi) {
 		scsiController := c.Architecture.ScsiController(InterpretTransitionalModelType(&c.UseVirtioTransitional, c.Architecture.GetArchitecture()), controllerDriver)
 		domain.Spec.Devices.Controllers = append(domain.Spec.Devices.Controllers, scsiController)
+	}
+
+	if c.Architecture.SupportPCIHole64Disabling() && shouldDisablePCIHole64(vmi) {
+		domain.Spec.Devices.Controllers = append(domain.Spec.Devices.Controllers,
+			api.Controller{
+				Type:  "pci",
+				Index: "0",
+				Model: "pcie-root",
+				PCIHole64: &api.PCIHole64{
+					Value: 0,
+					Unit:  "KiB",
+				},
+			},
+		)
 	}
 
 	if vmi.Spec.Domain.Clock != nil {
@@ -1953,6 +1957,13 @@ func needsSCSIController(vmi *v1.VirtualMachineInstance) bool {
 		}
 	}
 	return !vmi.Spec.Domain.Devices.DisableHotplug
+}
+
+func shouldDisablePCIHole64(vmi *v1.VirtualMachineInstance) bool {
+	if val, ok := vmi.Annotations[v1.DisablePCIHole64]; ok {
+		return strings.EqualFold(val, "true")
+	}
+	return false
 }
 
 func getBusFromDisk(disk v1.Disk) v1.DiskBus {

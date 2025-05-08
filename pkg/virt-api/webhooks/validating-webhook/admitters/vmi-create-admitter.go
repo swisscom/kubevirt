@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Copyright 2018 Red Hat, Inc.
+ * Copyright The KubeVirt Authors.
  *
  */
 
@@ -970,7 +970,8 @@ func validateEmulatedMachine(field *k8sfield.Path, spec *v1.VirtualMachineInstan
 		supportedMachines := config.GetEmulatedMachines(spec.Architecture)
 		var match = false
 		for _, val := range supportedMachines {
-			if regexp.MustCompile(val).MatchString(machine.Type) {
+			// The pattern are hardcoded, so this should not throw an error
+			if ok, _ := filepath.Match(val, machine.Type); ok {
 				match = true
 				break
 			}
